@@ -6,7 +6,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 <style>
-body { font-family: Tahoma, sans-serif; background: #f0f0f0; }
+body { font-family: Tahoma, sans-serif; background: #f0f0f0; direction: rtl; }
 table { border-collapse: collapse; margin: 20px auto; border-radius: 10px; overflow: hidden; }
 th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
 th { background: #ffb6c1; }
@@ -37,7 +37,9 @@ const db = firebase.database();
 // ماه‌ها و روزها
 const months = ["شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
 const days = ["ش","ی","د","س","چ","پ","ج"];
-const monthDays = [30,30,30,30,30,30,29];
+const monthDays = [31,30,30,30,30,30,29];
+// تعداد خانه‌های خالی قبل از روز اول هر ماه
+const emptyCells = [0,3,5,0,2,4,6];
 
 const calendarDiv = document.getElementById('calendar');
 
@@ -48,9 +50,13 @@ function createCalendar(){
     days.forEach(d=>{ html += `<th>${d}</th>` });
     html += `</tr><tr>`;
 
+    for(let i=0;i<emptyCells[idx];i++){
+      html += `<td></td>`;
+    }
+
     for(let i=1;i<=monthDays[idx];i++){
-      html += `<td data-month='${idx}' data-day='${i}'></td>`;
-      if((i+0)%7===0) html += `</tr><tr>`; // خط جدید هر 7 روز
+      html += `<td data-month='${idx}' data-day='${i}'>${i}</td>`;
+      if((i+emptyCells[idx])%7===0) html += `</tr><tr>`;
     }
     html += `</tr></table>`;
     calendarDiv.innerHTML += html;
@@ -59,25 +65,34 @@ function createCalendar(){
 
 createCalendar();
 
-// بارگذاری وضعیت از Firebase
-function loadStatus(){
-  months.forEach((month, idx)=>{
-    for(let i=1;i<=monthDays[idx];i++){
-      const cell = document.querySelector(`td[data-month='${idx}'][data-day='${i}']`);
-      db.ref(`calendar/month${idx}/day${i}`).once('value').then(snapshot=>{
-        const val = snapshot.val();
-        if(val==='done') cell.classList.add('done');
-        if(val==='failed') cell.classList.add('failed');
-      });
+// همگام سازی آنلاین: همه تغییرات فوری روی تمام دستگاه‌ها
+months.forEach((month, idx)=>{
+  const monthRef = db.ref(`calendar/month${idx}`);
+  monthRef.on('child_added', snapshot => {
+    const day = snapshot.key.replace('day','');
+    const val = snapshot.val();
+    const cell = document.querySelector(`td[data-month='${idx}'][data-day='${day}']`);
+    if(cell){
+      cell.classList.remove('done','failed');
+      if(val==='done') cell.classList.add('done');
+      if(val==='failed') cell.classList.add('failed');
     }
   });
-}
-
-loadStatus();
+  monthRef.on('child_changed', snapshot => {
+    const day = snapshot.key.replace('day','');
+    const val = snapshot.val();
+    const cell = document.querySelector(`td[data-month='${idx}'][data-day='${day}']`);
+    if(cell){
+      cell.classList.remove('done','failed');
+      if(val==='done') cell.classList.add('done');
+      if(val==='failed') cell.classList.add('failed');
+    }
+  });
+});
 
 // کلیک روی روزها
 calendarDiv.addEventListener('click', e=>{
-  if(e.target.tagName==='TD'){
+  if(e.target.tagName==='TD' && e.target.getAttribute('data-day')){
     const month = e.target.getAttribute('data-month');
     const day = e.target.getAttribute('data-day');
     if(e.target.classList.contains('done')){
