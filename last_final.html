@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="UTF-8">
+<title>تقویم 1404 ابری</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<style>
+body { font-family: Tahoma, sans-serif; background: #f0f0f0; direction: rtl; }
+table { border-collapse: collapse; margin: 20px auto; border-radius: 10px; overflow: hidden; }
+th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+th { background: #ffb6c1; }
+td { background: #ffe4e1; cursor: pointer; width: 40px; height: 40px; }
+td.done { background: #90ee90 !important; }
+td.failed { background: #ff7f7f !important; }
+.month-title { text-align: center; font-size: 20px; margin-top: 30px; }
+#saveButton { display: block; margin: 20px auto; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1 style="text-align:center;">تقویم 1404 ابری</h1>
+<div id="calendar"></div>
+<button id="saveButton">ذخیره</button>
+
+<script>
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyDGfJHHIpwIoAXXFuKIgtS0nsdny5GjUYU",
+  authDomain: "mycalendar-2c260.firebaseapp.com",
+  databaseURL: "https://mycalendar-2c260-default-rtdb.firebaseio.com/",
+  projectId: "mycalendar-2c260",
+  storageBucket: "mycalendar-2c260.appspot.com",
+  messagingSenderId: "494039769096",
+  appId: "1:494039769096:web:2fd5338ff141936aa971bd"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ماه‌ها و روزها
+const months = ["شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+const days = ["ش","ی","د","س","چ","پ","ج"];
+const monthDays = [31,30,30,30,30,30,29];
+const emptyCells = [0,3,5,0,2,4,6];
+
+const calendarDiv = document.getElementById('calendar');
+let calendarState = {}; // وضعیت محلی
+
+function createCalendar(){
+  months.forEach((month, idx)=>{
+    calendarState[`month${idx}`] = {};
+    let html = `<div class='month-title'>${month}</div>`;
+    html += `<table><tr>`;
+    days.forEach(d=>{ html += `<th>${d}</th>` });
+    html += `</tr><tr>`;
+
+    for(let i=0;i<emptyCells[idx];i++){
+      html += `<td></td>`;
+    }
+
+    for(let i=1;i<=monthDays[idx];i++){
+      html += `<td data-month='${idx}' data-day='${i}'>${i}</td>`;
+      if((i+emptyCells[idx])%7===0) html += `</tr><tr>`;
+    }
+    html += `</tr></table>`;
+    calendarDiv.innerHTML += html;
+  });
+}
+
+createCalendar();
+
+// بارگذاری وضعیت از Firebase و ایجاد مقادیر پیش‌فرض
+months.forEach((month, idx)=>{
+  const monthRef = db.ref(`calendar/month${idx}`);
+  for(let i=1;i<=monthDays[idx];i++){
+    monthRef.child(`day${i}`).once('value').then(snapshot => {
+      const val = snapshot.val();
+      const cell = document.querySelector(`td[data-month='${idx}'][data-day='${i}']`);
+      if(val){
+        cell.classList.remove('done','failed');
+        if(val==='done') cell.classList.add('done');
+        if(val==='failed') cell.classList.add('failed');
+      } else {
+        monthRef.child(`day${i}`).set(null); // مقدار پیش‌فرض
+      }
+    });
+  }
+});
+
+// کلیک روی روزها (تغییر محلی)
+calendarDiv.addEventListener('click', e=>{
+  if(e.target.tagName==='TD' && e.target.getAttribute('data-day')){
+    const month = e.target.getAttribute('data-month');
+    const day = e.target.getAttribute('data-day');
+    if(e.target.classList.contains('done')){
+      e.target.classList.remove('done');
+      e.target.classList.add('failed');
+      calendarState[`month${month}`][`day${day}`] = 'failed';
+    } else if(e.target.classList.contains('failed')){
+      e.target.classList.remove('failed');
+      delete calendarState[`month${month}`][`day${day}`];
+    } else {
+      e.target.classList.add('done');
+      calendarState[`month${month}`][`day${day}`] = 'done';
+    }
+  }
+});
+
+// دکمه ذخیره
+document.getElementById('saveButton').addEventListener('click', ()=>{
+  for(let m in calendarState){
+    for(let d in calendarState[m]){
+      db.ref(`calendar/${m}/${d}`).set(calendarState[m][d]);
+    }
+  }
+  alert('تغییرات ذخیره شد');
+});
+</script>
+</body>
+</html>
